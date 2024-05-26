@@ -23,6 +23,14 @@ import Gio from "gi://Gio";
 // See: https://gjs.guide/extensions/topics/extension.html#extension
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
+const WindowState = Object.freeze({
+  PLACED: Symbol("place"),
+  BACK: Symbol("back"),
+  REORDERED: Symbol("reorder") // appears to be a place holder
+});
+
+// TODO There appears to be an issue with how windows are rearranged when using static workspaces. They get pushed and they never go back
+
 export default class FullscreenToNewWorkspace extends Extension {
 
   enable() {
@@ -127,7 +135,7 @@ export default class FullscreenToNewWorkspace extends Extension {
           wList.forEach(w => { w.change_workspace_by_index(current, false); });
 
           // remember reordered window
-          this._windowids_maximized[win.get_id()] = "reorder";
+          this._windowids_maximized[win.get_id()] = WindowState.REORDERED;
         }
         else if (current > firstFree) {
           // show window on next free monitor (doesn't happen with dynamic workspaces)
@@ -137,7 +145,7 @@ export default class FullscreenToNewWorkspace extends Extension {
           // move the other windows to their old places
           wList.forEach(w => { w.change_workspace_by_index(current, false); });
           // remember reordered window
-          this._windowids_maximized[win.get_id()] = "reorder";
+          this._windowids_maximized[win.get_id()] = WindowState.REORDERED;
         }
       }
       else {
@@ -160,16 +168,18 @@ export default class FullscreenToNewWorkspace extends Extension {
           wListfirstfree.forEach(w => { w.change_workspace_by_index(firstFree, false); });
 
           // remember reordered window
-          this._windowids_maximized[win.get_id()] = "reorder";
+          this._windowids_maximized[win.get_id()] = WindowState.REORDERED;
         }
         else if (current > firstFree) {
           manager.reorder_workspace(manager.get_workspace_by_index(current), firstFree);
           manager.reorder_workspace(manager.get_workspace_by_index(firstFree + 1), current);
+
           // move the other windows to their old places
           wListcurrent.forEach(w => { w.change_workspace_by_index(current, false); });
           wListfirstfree.forEach(w => { w.change_workspace_by_index(firstFree, false); });
+
           // remember reordered window
-          this._windowids_maximized[win.get_id()] = "reorder";
+          this._windowids_maximized[win.get_id()] = WindowState.REORDERED;
         }
       }
     }
@@ -391,7 +401,7 @@ export default class FullscreenToNewWorkspace extends Extension {
    * @returns 
    */
   setToBePlaced(window) {
-    this._windowids_size_change[window.get_id()] = "place";
+    this._windowids_size_change[window.get_id()] = WindowState.PLACED;
   }
 
   /**
@@ -400,7 +410,7 @@ export default class FullscreenToNewWorkspace extends Extension {
    * @returns 
    */
   isToBePlaced(window) {
-    return this._windowids_size_change[window.get_id()] == "place";
+    return this._windowids_size_change[window.get_id()] == WindowState.PLACED;
   }
 
   /**
@@ -409,7 +419,7 @@ export default class FullscreenToNewWorkspace extends Extension {
    * @returns 
    */
   setToBePlacedBack(window) {
-    this._windowids_size_change[window.get_id()] = "back";
+    this._windowids_size_change[window.get_id()] = WindowState.BACK;
   }
 
   /**
@@ -418,6 +428,6 @@ export default class FullscreenToNewWorkspace extends Extension {
    * @returns 
    */
   isToBePlacedBack(window) {
-    return this._windowids_size_change[window.get_id()] == "back";
+    return this._windowids_size_change[window.get_id()] == WindowState.BACK;
   }
 }
