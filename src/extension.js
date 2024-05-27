@@ -26,7 +26,7 @@
  *      - This works pretty well 
  * 5. Edge Case: What if the workspace that the window used to exist in gets deleted?
  * 6. Not handling the workspace signal handlers correctly 
- */
+*/
 
 // See: https://gjs.guide/extensions/topics/extension.html#extension
 import Meta from "gi://Meta";
@@ -167,14 +167,14 @@ export default class FullscreenToNewWorkspace extends Extension {
       return
     }
 
-      const manager = global.get_workspace_manager();
-      const current = manager.get_active_workspace_index();
+    const manager = global.get_workspace_manager();
+    const current = manager.get_active_workspace_index();
 
-        // Check for a free monitor: do nothing if doesn't exist
-        const firstFree = this.getFirstFreeMonitor(manager, mMonitor);
+    // Check for a free monitor: do nothing if doesn't exist
+    const firstFree = this.getFirstFreeMonitor(manager, mMonitor);
     // No free monitor: do nothing
-        if (firstFree == -1)
-          return;
+    if (firstFree == -1)
+      return;
 
     if (this._mutterSettings.get_boolean('workspaces-only-on-primary') || global.get_display().get_n_monitors() == 1) {
       // Only primary monitor is relevant, others don't have multiple workspaces
@@ -182,40 +182,41 @@ export default class FullscreenToNewWorkspace extends Extension {
         return;
 
 
-        if (current < firstFree) { // This should always be true for dynamic workspaces
-          // insert existing window on next monitor (each other workspace is moved one index further)
-          manager.reorder_workspace(manager.get_workspace_by_index(firstFree), current);
+      if (current < firstFree) { // This should always be true for dynamic workspaces
         this.moveWorkspace(firstFree, current);
           wList.forEach(w => { w.change_workspace_by_index(current, false); });
 
-          // remember reordered window
+        // remember reordered window
         this._windowids_maximized[win.get_id()] = WindowState.MOVED_FORWARD;
-        }
-        else if (current > firstFree) {
-          // show window on next free monitor (doesn't happen with dynamic workspaces)
+      }
+      else if (current > firstFree) {
+        // show window on next free monitor (doesn't happen with dynamic workspaces)
         this.swapWorkspaces(current, firstFree);
 
-          // remember reordered window
+        // remember reordered window
         this._windowids_maximized[win.get_id()] = WindowState.MOVED_BACKWARD;
-        }
+      }
       // move the other windows to their old places
       wList.forEach(w => { w.change_workspace_by_index(current, false); });
+    }
+    else {
       }
       else {
         // All monitors have workspaces
+      // All monitors have workspaces
 
-        // show the window on the workspace with the empty monitor
+      // show the window on the workspace with the empty monitor
       const wListCurrent = win.get_workspace().list_windows().filter(w => w !== win && !w.is_always_on_all_workspaces());
       const wListFirstFree = manager.get_workspace_by_index(firstFree).list_windows().filter(w => w !== win && !w.is_always_on_all_workspaces());
       
       this.swapWorkspaces(current, firstFree);
       this._windowids_maximized[win.get_id()] = current < firstFree ? 
       WindowState.MOVED_FORWARD : WindowState.MOVED_BACKWARD;
-
-          // move the other windows to their old places
+      
+      // move the other windows to their old places
       wListCurrent.forEach(w => { w.change_workspace_by_index(current, false); });
       wListFirstFree.forEach(w => { w.change_workspace_by_index(firstFree, false); });
-
+      
     }
   }
 
@@ -240,20 +241,20 @@ export default class FullscreenToNewWorkspace extends Extension {
     delete this._windowids_maximized[win.get_id()];
 
     const winMonitor = win.get_monitor();
-      const manager = win.get_display().get_workspace_manager();
-      const current = manager.get_active_workspace_index();
+    const manager = win.get_display().get_workspace_manager();
+    const current = manager.get_active_workspace_index();
 
     // Check for last occupied monitor: do nothing if it does not exist
     const lastOccupied = this.getLastOccupiedMonitor(manager, current, winMonitor);
-        if (lastOccupied == -1)
-          return;
+    if (lastOccupied == -1)
+      return;
 
     // Define the filter to be used that will find valid windows in the workspace
     let windowFilter = w => w !== win && !w.is_always_on_all_workspaces();
     if (this._mutterSettings.get_boolean('workspaces-only-on-primary') || global.get_display().get_n_monitors() == 1) {
       // Check if window is on primary monitor. Do nothing if it isn't
       if (Utils.notOnPrimaryMonitor(win))
-          return;
+        return;
 
       // Update window filter so that it only checks windows that are on the same monitor as the resized window
       windowFilter = w => w !== win && !w.is_always_on_all_workspaces() && w.get_monitor() == winMonitor;
@@ -268,7 +269,7 @@ export default class FullscreenToNewWorkspace extends Extension {
     // Finally, switch workspace position to last with windows and move all windows there (should only be 1 window, right?)
     let wListLastOccupied = manager.get_workspace_by_index(lastOccupied).list_windows().filter(windowFilter);
     this.moveWorkspace(current, lastOccupied);
-        wListLastOccupied.forEach(w => { w.change_workspace_by_index(lastOccupied, false); });
+    wListLastOccupied.forEach(w => { w.change_workspace_by_index(lastOccupied, false); });
   }
 
   /**
