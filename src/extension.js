@@ -25,7 +25,7 @@
  *      - I think I will delete it from the list of windows to be moved
  *      - This works pretty well 
  * 5. Edge Case: What if the workspace that the window used to exist in gets deleted?
- * 6. Not handling the workspace signal handlers correctly 
+ * 6. FIXED Not handling the workspace signal handlers correctly 
 */
 
 // See: https://gjs.guide/extensions/topics/extension.html#extension
@@ -44,7 +44,6 @@ const WindowState = Object.freeze({
   MOVED_BACKWARD: Symbol("backward")
 });
 
-// TODO There appears to be an issue with how windows are rearranged when using static workspaces. They get pushed and they never go back
 
 export default class FullscreenToNewWorkspace extends Extension {
 
@@ -62,8 +61,10 @@ export default class FullscreenToNewWorkspace extends Extension {
     this._handles.push(global.window_manager.connect('destroy', (_, act) => { this.window_manager_destroy(act); }));
     this._handles.push(global.window_manager.connect('size-change', (_, act, change, rectold) => { this.window_manager_size_change(act, change, rectold); }));
 
-    this._handles.push(global.workspace_manager.connect('workspace-added', (_, index) => { this.trackWindowsAdded(index); }));
-    this._handles.push(global.workspace_manager.connect('workspace-removed', (_, index) => { this.removeWorkspaceHandler(index); }));
+    // FIXME Is there a more elegant way of doing this?
+    this._wsm_handles = []
+    this._wsm_handles.push(global.workspace_manager.connect('workspace-added', (_, index) => { this.trackWindowsAdded(index); }));
+    this._wsm_handles.push(global.workspace_manager.connect('workspace-removed', (_, index) => { this.removeWorkspaceHandler(index); }));
 
     this._ws_handles = [];
     for (let i = 0; i < global.workspace_manager.get_n_workspaces(); i++) {
@@ -103,8 +104,16 @@ export default class FullscreenToNewWorkspace extends Extension {
     this.settings = null;
 
     // remove array and disconnect
-    const handles_to_disconnect = [this._handles.splice(0), this._ws_handles.splice(0)].flat();
+    let handles_to_disconnect = this._handles.splice(0);
     handles_to_disconnect.forEach(h => global.window_manager.disconnect(h));
+
+    handles_to_disconnect = this._wsm_handles.splice(0);
+    handles_to_disconnect.forEach(h => global.workspace_manager.disconnect(h));
+
+    handles_to_disconnect = this._ws_handles.splice(0)
+    for (let i = 0; i < global.workspace_manager.get_n_workspaces(); i++) {
+      global.workspace_manager.get_workspace_by_index(i).disconnect(handles_to_disconnect[i]);
+    }
 
     this._windowids_maximized = {};
     this._windowids_size_change = {};
@@ -184,12 +193,12 @@ export default class FullscreenToNewWorkspace extends Extension {
 
       if (current < firstFree) { // This should always be true for dynamic workspaces
         this.moveWorkspace(firstFree, current);
-          wList.forEach(w => { w.change_workspace_by_index(current, false); });
 
         // remember reordered window
         this._windowids_maximized[win.get_id()] = WindowState.MOVED_FORWARD;
       }
       else if (current > firstFree) {
+        // TESTME
         // show window on next free monitor (doesn't happen with dynamic workspaces)
         this.swapWorkspaces(current, firstFree);
 
@@ -200,23 +209,21 @@ export default class FullscreenToNewWorkspace extends Extension {
       wList.forEach(w => { w.change_workspace_by_index(current, false); });
     }
     else {
-      }
-      else {
-        // All monitors have workspaces
+      // TESTME
+
       // All monitors have workspaces
 
       // show the window on the workspace with the empty monitor
       const wListCurrent = win.get_workspace().list_windows().filter(w => w !== win && !w.is_always_on_all_workspaces());
       const wListFirstFree = manager.get_workspace_by_index(firstFree).list_windows().filter(w => w !== win && !w.is_always_on_all_workspaces());
-      
+
       this.swapWorkspaces(current, firstFree);
-      this._windowids_maximized[win.get_id()] = current < firstFree ? 
-      WindowState.MOVED_FORWARD : WindowState.MOVED_BACKWARD;
-      
+      this._windowids_maximized[win.get_id()] = current < firstFree ?
+        WindowState.MOVED_FORWARD : WindowState.MOVED_BACKWARD;
+
       // move the other windows to their old places
       wListCurrent.forEach(w => { w.change_workspace_by_index(current, false); });
       wListFirstFree.forEach(w => { w.change_workspace_by_index(firstFree, false); });
-      
     }
   }
 
@@ -299,7 +306,7 @@ export default class FullscreenToNewWorkspace extends Extension {
   /**
    * 
    * @param {Meta.WindowActor} act 
-   * @param {*} change 
+   * @param {Meta.SizeChange} change 
    * @param {*} rectold 
    */
   window_manager_size_change(act, change, rectold) {
@@ -473,9 +480,9 @@ export default class FullscreenToNewWorkspace extends Extension {
   moveWorkspace(from, to) {
     let manager = global.get_workspace_manager()
     manager.reorder_workspace(manager.get_workspace_by_index(from), to);
-    Utils.moveItem(this._ws_handles, from, to)
+    this._ws_handles = Utils.moveItem(this._ws_handles, from, to)
   }
-  
+
   /**
    * 
    * @param {Number} winIndex1 
@@ -483,7 +490,7 @@ export default class FullscreenToNewWorkspace extends Extension {
    */
   swapWorkspaces(winIndex1, winIndex2) {
     this.moveWorkspace(winIndex1, winIndex2);
-    winIndex2 =  winIndex2 > winIndex1 ? --winIndex2 : ++winIndex2;
+    winIndex2 = winIndex2 > winIndex1 ? --winIndex2 : ++winIndex2;
     this.moveWorkspace(winIndex2, winIndex1);
   }
 }
